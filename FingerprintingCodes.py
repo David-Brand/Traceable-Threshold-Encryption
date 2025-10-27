@@ -1,6 +1,7 @@
 from bitstring import BitArray
 import random
 import math
+import time
 
 
 class FingerprintingCode:
@@ -65,6 +66,7 @@ class LogLengthCodes:
 
     def __init__(self, N, c, e):
         self.N = N
+
         self.L = math.ceil(2 * c * math.log((2 * N) / e))
         self.c = c
         self.n = 2 * c
@@ -73,6 +75,7 @@ class LogLengthCodes:
         self.codes = [FingerprintingCode(self.n, e, self.d) for i in range(self.L)]
         self.hiddenCode = self.createHiddenCode()
         self.codeBook = self.writeCodeBook()
+        print("length:" + str(self.L * self.d * (self.n - 1)))
 
     def createHiddenCode(self):
         h = []
@@ -106,14 +109,52 @@ class LogLengthCodes:
                 matches = count
         return index
 
-    def collude(self, i, j):
+    def collude(self, c):
         l = self.L * self.d * (self.n-1)
-        c = BitArray(l)
+        word = BitArray(l)
         for k in range(l):
-            c[k] = (self.codeBook[i][k] == 1 & self.codeBook[j][k] == 1)
-        return c
+            one = False
+            for i in c:
+                if self.codeBook[i][k] == 1:
+                    one = True
+            word.set(one, k)
+        return word
 
 
 if __name__ == '__main__':
-    a = LogLengthCodes(10, 2, 0.1)
-    print(a.trace(a.collude(2, 4)))
+    Ns = [10000, 1000, 100]
+    Es = [0.1]
+    colluders = []
+    for wordcount in Ns:
+        t = 10
+        for p in Es:
+            colluders.clear()
+            for i in range(t):
+                colluders.append(random.randint(0, wordcount-1))
+            print("N:" + wordcount.__str__() + " c:" + t.__str__() + " e:" + p.__str__())
+
+            creation_start = time.process_time()
+
+            a = LogLengthCodes(wordcount, t, p)
+
+            creation_stop = time.process_time()
+
+            creation_time = creation_stop - creation_start
+            print("creation time: " + creation_time.__str__())
+
+            collusion_start = time.process_time()
+            illegal_word = a.collude(colluders)
+            collusion_stop = time.process_time()
+            collusion_time = collusion_stop - collusion_start
+            print("collusion time: " + collusion_time.__str__())
+
+            tracing_start = time.process_time()
+
+            guilty = a.trace(illegal_word)
+            print("coalition: " + colluders.__str__())
+            print("guilty user: " + guilty.__str__())
+
+            tracing_stop = time.process_time()
+            tracing_time = tracing_stop - tracing_start
+            print("tracing time: " + tracing_time.__str__())
+
