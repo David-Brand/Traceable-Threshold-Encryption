@@ -1,0 +1,28 @@
+cmake_minimum_required(VERSION 3.20)
+project(BTBF_KEM LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if (MSVC)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
+set(MCL_PATH "c:/Programme/mcl")
+set(OPENSSL_PATH "c:/Programme/OpenSSL")
+
+link_directories(${MCL_PATH}/lib)
+link_directories(${OPENSSL_PATH}/lib)
+
+add_executable(btbf
+    src/main.cpp
+    src/btbf.cpp
+    src/btbf.hpp
+)
+
+
+target_include_directories(btbf PRIVATE ${MCL_PATH}/include)
+
+target_include_directories(btbf PRIVATE ${OPENSSL_PATH}/include)
+
+target_link_libraries(btbf PRIVATE mcl libcrypto)
