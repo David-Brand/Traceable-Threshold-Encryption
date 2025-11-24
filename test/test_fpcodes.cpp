@@ -6,9 +6,9 @@
 int main() {
     using namespace fingerprinting;
 
-    std::vector<std::size_t> Ns = {100};
+    std::vector<std::size_t> Ns = {100, 1000};
     std::vector<double> Es = {0.2};
-    std::vector<std::size_t> coalition_sizes = {50};
+    std::vector<std::size_t> coalition_sizes = {10, 50, 100};
 
     std::mt19937_64 rng(std::random_device{}());
 
@@ -27,15 +27,17 @@ int main() {
                           << " c: " << t
                           << " e: " << p << '\n';
 
+                try{
                 auto creation_start = std::chrono::high_resolution_clock::now();
                 LogLengthCodes a(wordcount, t, p);
                 auto creation_stop = std::chrono::high_resolution_clock::now();
+                
 
                 std::chrono::duration<double> creation_time = creation_stop - creation_start;
                 std::cout << "creation time: " << creation_time.count() << '\n';
-
+                
                 auto collusion_start = std::chrono::high_resolution_clock::now();
-                std::vector<Bitset> illegal_word = a.collude(colluders);
+                auto illegal_word = a.collude(colluders);
                 auto collusion_stop = std::chrono::high_resolution_clock::now();
 
                 std::chrono::duration<double> collusion_time = collusion_stop - collusion_start;
@@ -53,6 +55,10 @@ int main() {
                 std::cout << "]\n";
                 std::cout << "guilty user: " << guilty_user << '\n';
                 std::cout << "tracing time: " << tracing_time.count() << "\n\n";
+                } catch(const std::exception& e){
+                    std::cout << "Exception: " << e.what() << "\n";
+                    continue;
+                }
             }
         }
     }

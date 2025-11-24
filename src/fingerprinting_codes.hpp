@@ -8,81 +8,106 @@
 #include <algorithm>
 #include <numeric>
 #include <iostream>
+#include <limits>
+#include <stdexcept>
+#include <intrin.h>
 
 namespace fingerprinting {
 
-using Bitset = std::vector<bool>;
+// Packed bitset: stores bits in uint64_t blocks
+class PackedBitset {
+public:
+    PackedBitset(std::size_t n = 0) : bits_((n+63)/64, 0), size_(n) {}
+    void resize(std::size_t n) {
+        bits_.resize((n+63)/64, 0);
+        size_ = n;
+    }
+    void clear() { std::fill(bits_.begin(), bits_.end(), 0); }
+    bool get(std::size_t i) const {
+        return (bits_[i/64] >> (i%64)) & 1;
+    }
+    void set(std::size_t i, bool v = true) {
+        if (v)
+            bits_[i/64] |= (uint64_t(1) << (i%64));
+        else
+            bits_[i/64] &= ~(uint64_t(1) << (i%64));
+    }
+    std::size_t size() const { return size_; }
+
+    void orInPlace(const PackedBitset& other) {
+        auto& a = bits_;
+        const auto& b = other.blocks();
+        std::size_t n = a.size();
+        for (std::size_t i = 0; i < n; ++i) {
+            a[i] |= b[i];
+        }
+    }
+
+
+    // direct access to blocks
+    const std::vector<uint64_t>& blocks() const { return bits_; }
+    std::vector<uint64_t>& blocks() { return bits_; }
+private:
+    std::vector<uint64_t> bits_;
+    std::size_t size_;
+};
 
 class FingerprintingCode {
 public:
-    FingerprintingCode(std::size_t n, double e, std::size_t d_override = 0);
+    FingerprintingCode(std::size_t n, double e, std::mt19937_64& engine, std::vector<std::size_t>& permutation, std::size_t d_override = 0);
 
-    // Accessors
     std::size_t n() const { return n_; }
     double e() const { return e_; }
     std::size_t d() const { return d_; }
     std::size_t l() const { return l_; }
 
-    void getCodeword(std::size_t user, Bitset& out) const;
-    void getCodewordToSlice(std::size_t user, Bitset& out, std::size_t offset) const;
+    // Generate codeword for user
+    void getCodeword(std::size_t user, PackedBitset& out) const;
 
-    // Operations
-    std::vector<std::size_t> trace(const Bitset& x) const;
-    Bitset collude(std::size_t i, std::size_t j) const;
+    //returns indices of guilty users
+    std::vector<std::size_t> trace(const PackedBitset& x) const;
 
+    //OR of two codewords
+    void collude(std::size_t i, std::size_t j, PackedBitset& out) const;
 
 private:
-    std::size_t n_;                 // number of users
-    double      e_;                 // error probability
-    std::size_t d_;                 // block length
-    std::size_t l_;                 // total length = d * (n-1)
-    std::vector<std::size_t> permutation_;
+    std::size_t n_, d_, l_;
+    double e_;
+    std::vector<std::size_t>& permutation_;
+    std::mt19937_64& engine_;
 
-    std::size_t weight(const Bitset& x,
-                       std::size_t start,
-                       std::size_t end) const; // end exclusive
-
-    // global RNG helper
-    static std::mt19937_64& rng();
+    std::size_t weight(const PackedBitset& x, std::size_t start, std::size_t end) const;
 };
 
-
-// Log-length codes wrapper
 class LogLengthCodes {
 public:
     LogLengthCodes(std::size_t N, std::size_t c, double e);
 
-    // Accessors
     std::size_t N() const { return N_; }
     std::size_t c() const { return c_; }
     std::size_t L() const { return L_; }
     std::size_t n() const { return n_; }
     std::size_t d() const { return d_; }
 
-    // Trace pirate copy and return index of most likely guilty word
-    std::size_t trace(const std::vector<Bitset> x) const;
+    //return index of most likely guilty word
+    std::size_t trace(const std::vector<PackedBitset>& x) const;
 
-    // Coalition collusion: given indices of colluders, produce illegal word
-    std::vector<Bitset> collude(const std::vector<std::size_t>& coalition) const;
+    std::vector<PackedBitset> collude(const std::vector<std::size_t>& coalition) const;
 
-    std::vector<Bitset> getLLCodeword(std::size_t user) const;
+    // Generate codeword for user
+    void getLLCodeword(std::size_t user, std::vector<PackedBitset>& out) const;
 
 private:
-    std::size_t N_; // number of words
-    std::size_t c_; // coalition size
-    std::size_t L_; // number of component codes
-    std::size_t n_; // n = 2c
-    double      e_;
-    std::size_t d_; // block length in each FingerprintingCode
-    std::size_t total_length_;
-    std::size_t block_length_;
-
+    std::size_t N_, c_, L_, n_, d_, total_length_, block_length_;
+    double e_;
     std::vector<FingerprintingCode> components_;
     std::vector<std::vector<std::size_t>> hiddenCode_;
+    std::mt19937_64 engine_;
+    std::vector<std::vector<std::size_t>> permutations_;
 
     std::vector<std::vector<std::size_t>> createHiddenCode();
 };
 
 } // namespace fingerprinting
 
-#endif // FINGERPRINTING_CODES
+#endif // FINGERPRINTING_CODES_HPP

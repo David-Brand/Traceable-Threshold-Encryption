@@ -3,6 +3,8 @@ project(FingerprintingCodesTest CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2")
+add_compile_options(/openmp)
+
 
 add_library(fpcodes
     ../src/fingerprinting_codes.cpp
