@@ -1,78 +1,96 @@
 #pragma once
+
 #include <mcl/bls12_381.hpp>
-#include <string>
-#include <vector>
+#include <mcl/curve_type.h>
+
+#include <array>
+#include <cstdint>
 #include <utility>
+#include <vector>
+#include <string>
 
 namespace btbf {
 
-using Fr = mcl::bls12::Fr;
-using G1 = mcl::bls12::G1;
-using G2 = mcl::bls12::G2;
-using GT = mcl::bls12::GT;
-
-// Public key: X = g1^(αyz), Y = g1^y, Z = g1^z
-struct PublicKey {
-    G1 X, Y, Z;
-};
-
-// A single (k0, k1) secret share: k0 ∈ G1, k1 ∈ G2
-struct Share {
-    G1 k0;
-    G2 k1;
-};
-
-using LRShare = std::pair<Share, Share>;
-
-// Secret key for one party: ℓ positions of (left, right) shares
-struct PartySecretKey {
-    std::vector<LRShare> pos; // size ℓ
-};
-
-// Ciphertext side c_b = (u_b ∈ G2, v_b ∈ G1)
-struct Side {
-    G2 u;
-    G1 v;
-};
-
-struct Ciphertext {
-    Side c0;
-    Side c1;
-};
-
-//output key
-struct SharedKey {
-    std::string hex;
-};
-
 class BTBF {
 public:
-    //curve setup
+    using G1 = mcl::bn::G1;
+    using G2 = mcl::bn::G2;
+    using GT = mcl::bn::GT;
+    using Fr = mcl::bn::Fr;
+
+    // H2 key = 256-bit string
+    using SymKey = std::array<uint8_t, 32>;
+
+    struct SecretKeyComponent {
+        G1 k0; // in G1
+        G2 k1; // in G2
+    };
+
+    // For each party i, for each position j we have left (b=0) and right (b=1) keys
+    struct PartySecret {
+        std::vector<SecretKeyComponent> left;   // sk_i,0^{(j)} for j=1..ℓ
+        std::vector<SecretKeyComponent> right;  // sk_i,1^{(j)} for j=1..ℓ
+    };
+
+    struct PublicKey {
+        G1 X; // g1^{α y z}
+        G1 Y; // g1^y
+        G1 Z; // g1^z
+    };
+
+    struct CiphertextComponent {
+        G2 u; // in G2
+        G1 v; // in G1
+    };
+
+    struct Ciphertext {
+        CiphertextComponent c0; // encrypts Y^r
+        CiphertextComponent c1; // encrypts Z^r
+        int j;                  // position j this ciphertext is for
+    };
+
+    struct KeyGenOutput {
+        PublicKey pk;
+        // pkc = ⊥ in the scheme --> omitted
+        std::vector<PartySecret> parties; // size n
+        int n;
+        int t;
+        int ell;
+    };
+
+    // --- API ---
+
+    // Must be called once before using any other BTBF functions.
     static void init();
 
-    // Key generation
-    static void KeyGen(int n, int t, int ell, PublicKey& pk, std::vector<PartySecretKey>& sks);
+    // BTBF.KeyGen(1^λ, n, t, ℓ)
+    static KeyGenOutput keygen(int n, int t, int ell);
 
-    // Encapsulation to position j (1-based): returns (c, k)
-    static void Enc(const PublicKey& pk, int j, Ciphertext& ct, SharedKey& k);
+    // BTBF.Enc(pk, j): returns (k, c)
+    static std::pair<SymKey, Ciphertext> encaps(const PublicKey& pk, int j);
 
-    // A party's decryption share using its left/right bit b for position j (1-based)
-    static GT DecShare(const PartySecretKey& ski, int j, int b, const Ciphertext& ct);
+    // BTBF.Dec(j, sk_i,b^{(j)}, c_b) -> d_i in GT
+    static GT decShare(const SecretKeyComponent& sk_i_b,
+                       const CiphertextComponent& c_b);
 
-    static SharedKey Combine(const std::vector<int>& J, const std::vector<GT>& shares);
+    // BTBF.Combine(pkc = ⊥, j, c, J, {d_i}_{i∈J}) -> k
+    // J : 1-based indices of parties; shares : d_i in the same order as J.
+    static SymKey combine(const std::vector<int>& J,
+                          const std::vector<GT>& shares);
 
 private:
-    //N -> G1
-    static void H1(G1& out, int j);
+    static bool initialized_;
+    static G1 g1_; // "generator" used for X,Y,Z
+    static G2 g2_; // "generator" used wherever g2 appears
 
-    static void G1gen(G1& g1);
-    static void G2gen(G2& g2);
+    // H1 : N -> G1
+    static G1 H1(int j);
 
-    //GT -> {0,1}^λ
-    static std::string kdf(const GT& x);
+    // H2 : GT -> {0,1}^λ  (here λ = 256)
+    static SymKey H2(const GT& w);
 
-    // Lagrange coefficients at 0 for indices J (in Fr)
-    static std::vector<Fr> lagrangeAtZero(const std::vector<int>& J);
+    // helper : Lagrange coefficient λ_i^J at 0 for point i in J
+    static Fr lagrangeCoeffAtZero(const std::vector<int>& J, int i);
 };
 
 } // namespace btbf

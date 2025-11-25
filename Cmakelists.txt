@@ -1,28 +1,34 @@
 cmake_minimum_required(VERSION 3.20)
-project(BTBF_KEM LANGUAGES CXX)
+
+project(btbf_project LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (MSVC)
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    # /MT in ALL configs (Debug/Release)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
 endif()
 
-set(MCL_PATH "c:/Programme/mcl")
-set(OPENSSL_PATH "c:/Programme/OpenSSL")
+set(MCL_ROOT "c:/Programme/mcl" CACHE PATH "Path to mcl root directory")
 
-link_directories(${MCL_PATH}/lib)
-link_directories(${OPENSSL_PATH}/lib)
+set(MCL_INCLUDE_DIR "${MCL_ROOT}/include")
+set(MCL_LIB "${MCL_ROOT}/lib/mcl.lib")
 
 add_executable(btbf
     src/main.cpp
     src/btbf.cpp
-    src/btbf.hpp
 )
 
+target_include_directories(btbf PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${MCL_INCLUDE_DIR}
+)
 
-target_include_directories(btbf PRIVATE ${MCL_PATH}/include)
+target_link_libraries(btbf PRIVATE "${MCL_LIB}")
 
-target_include_directories(btbf PRIVATE ${OPENSSL_PATH}/include)
-
-target_link_libraries(btbf PRIVATE mcl libcrypto)
+if (MSVC)
+    target_compile_options(btbf PRIVATE
+        $<$<CONFIG:Release>:/O2 /DNDEBUG>
+    )
+endif()

@@ -1,38 +1,60 @@
 #include "btbf.hpp"
+
 #include <iostream>
-#include <vector>
+#include <iomanip>
+#include <algorithm>
 
-using namespace btbf;
-
-int main() {
-    BTBF::init();
-
-    // Demo params
-    const int n = 5;
-    const int t = 3;
-    const int ell = 2; // positions
-
-    PublicKey pk;
-    std::vector<PartySecretKey> sks;
-    BTBF::KeyGen(n, t, ell, pk, sks);
-
-    // Encapsulate to position j = 1
-    Ciphertext ct;
-    SharedKey kEnc;
-    BTBF::Enc(pk, 1, ct, kEnc);
-
-    // Get t decryption shares
-    std::vector<int> J = {1, 2, 3};              // parties indices (1-based)
-    std::vector<GT> shares;
-    for (int idx : J) {
-        // here only left key (b=0)
-        shares.push_back(BTBF::DecShare(sks[idx-1], 1, /*b=*/0, ct));
+static void printKey(const btbf::BTBF::SymKey& k, const char* label)
+{
+    std::cout << label << ": 0x";
+    for (auto b : k) {
+        std::cout << std::hex << std::setw(2) << std::setfill('0')
+                  << static_cast<int>(b);
     }
+    std::cout << std::dec << "\n";
+}
 
-    SharedKey kDec = BTBF::Combine(J, shares);
+int main()
+{
+    try {
+        btbf::BTBF::init();
 
-    std::cout << "Encapsulated key: " << kEnc.hex << "\n";
-    std::cout << "Decapsulated key: " << kDec.hex << "\n";
-    std::cout << "Match: " << (kEnc.hex == kDec.hex ? "YES" : "NO") << std::endl;
-    return 0;
+        // Example parameters
+        int n   = 5;
+        int t   = 3;
+        int ell = 2; // two positions, j=1,2
+
+        auto keygenOut = btbf::BTBF::keygen(n, t, ell);
+
+        int j = 1; // position to encapsulate to
+
+        // Encapsulate
+        auto [k_enc, ct] = btbf::BTBF::encaps(keygenOut.pk, j);
+
+        // Let parties 1,2,4 contribute decryption shares using their LEFT keys at position j
+        std::vector<int> J = {1, 2, 4}; // indices of parties (1-based)
+
+        std::vector<btbf::BTBF::GT> shares;
+        shares.reserve(J.size());
+        for (int idx : J) {
+            const auto& party = keygenOut.parties[idx - 1];
+            const auto& sk_left_j = party.left[j - 1]; // left key (b=0) for position j
+            auto di = btbf::BTBF::decShare(sk_left_j, ct.c0);
+            shares.push_back(di);
+        }
+
+        auto k_dec = btbf::BTBF::combine(J, shares);
+
+        printKey(k_enc, "Encapsulated key");
+        printKey(k_dec, "Recovered   key");
+
+        bool equal = std::equal(k_enc.begin(), k_enc.end(), k_dec.begin());
+        std::cout << "Keys match? " << (equal ? "YES" : "NO") << "\n";
+
+        return equal ? 0 : 1;
+    }
+    catch (const std::exception& ex) {
+        std::cerr << "Exception: " << ex.what() << "\n";
+        return 1;
+    }
 }
