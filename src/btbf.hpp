@@ -13,10 +13,10 @@ namespace btbf {
 
 class BTBF {
 public:
-    using G1 = mcl::bn::G1;
-    using G2 = mcl::bn::G2;
-    using GT = mcl::bn::GT;
-    using Fr = mcl::bn::Fr;
+    using G1 = mcl::bls12::G1;
+    using G2 = mcl::bls12::G2;
+    using GT = mcl::bls12::GT;
+    using Fr = mcl::bls12::Fr;
 
     // H2 key = 256-bit string
     using SymKey = std::array<uint8_t, 32>;
@@ -58,8 +58,6 @@ public:
         int ell;
     };
 
-    // --- API ---
-
     // Must be called once before using any other BTBF functions.
     static void init();
 
@@ -70,18 +68,16 @@ public:
     static std::pair<SymKey, Ciphertext> encaps(const PublicKey& pk, int j);
 
     // BTBF.Dec(j, sk_i,b^{(j)}, c_b) -> d_i in GT
-    static GT decShare(const SecretKeyComponent& sk_i_b,
-                       const CiphertextComponent& c_b);
+    static GT decShare(const SecretKeyComponent& sk_i_b, const CiphertextComponent& c_b);
 
     // BTBF.Combine(pkc = ⊥, j, c, J, {d_i}_{i∈J}) -> k
     // J : 1-based indices of parties; shares : d_i in the same order as J.
-    static SymKey combine(const std::vector<int>& J,
-                          const std::vector<GT>& shares);
+    static SymKey combine(const std::vector<int>& J, const std::vector<GT>& shares);
 
 private:
     static bool initialized_;
-    static G1 g1_; // "generator" used for X,Y,Z
-    static G2 g2_; // "generator" used wherever g2 appears
+    static G1 g1_; // generator of G1
+    static G2 g2_; // generator of G2
 
     // H1 : N -> G1
     static G1 H1(int j);
@@ -89,8 +85,8 @@ private:
     // H2 : GT -> {0,1}^λ  (here λ = 256)
     static SymKey H2(const GT& w);
 
-    // helper : Lagrange coefficient λ_i^J at 0 for point i in J
-    static Fr lagrangeCoeffAtZero(const std::vector<int>& J, int i);
+    //Lagrange coefficient λ_i^J for point i in J
+    static Fr lagrangeCoeff(const std::vector<int>& J, int i);
 };
 
 } // namespace btbf

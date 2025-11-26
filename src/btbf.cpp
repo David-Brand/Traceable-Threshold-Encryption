@@ -2,9 +2,9 @@
 
 #include <algorithm>
 #include <stdexcept>
-#include <iostream> // optional, for debugging/logging
+#include <cstring>
 
-using namespace mcl::bn;
+using namespace mcl::bls12;
 
 namespace btbf {
 
@@ -20,7 +20,8 @@ void BTBF::init(){
     setMapToMode(MCL_MAP_TO_MODE_HASH_TO_CURVE);
 
     // Define g1 and g2 generators
-    g1_ = getG1basePoint();
+    const char *g1Str = "1 0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb 0x08b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1";
+    g1_.setStr(g1Str, 16);
     const char *g2Str = "1 0x24aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8 0x13e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e 0x0ce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801 0x0606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be";
     g2_.setStr(g2Str, 16);
 
@@ -37,51 +38,43 @@ BTBF::G1 BTBF::H1(int j){
 
 // H2(W) : GT -> {0,1}^256
 BTBF::SymKey BTBF::H2(const GT& w){
-    // Serialize GT element
     uint8_t buf[512];
     size_t n = w.serialize(buf, sizeof(buf));
 
-    // Hash to Fr
     Fr x;
-    x.setHashOf(buf, n);
+    if (n > 0) {
+        x.setHashOf(buf, n);
+    } else {
+        //string representation if serialize fails
+        std::string s = w.getStr(16);
+        x.setHashOf(s.data(), s.size());
+    }
 
     SymKey key{};
     x.getLittleEndian(key.data(), key.size());
     return key;
 }
 
-// Lagrange coefficient λ_i^J at 0 for points in J
-BTBF::Fr BTBF::lagrangeCoeffAtZero(const std::vector<int>& J, int i){
-    Fr num = 1;
-    Fr den = 1;
-
+// Lagrange coefficient λ_i^J for points in J
+BTBF::Fr BTBF::lagrangeCoeff(const std::vector<int>& J, int i){
     Fr fi = i;
+    Fr lambda = 1;
 
     for (int v : J) {
         if (v == i) continue;
 
         Fr fv = v;
-        // num = num * fv;
-        Fr::mul(num, num, fv);
-        // tmp = fv - fi;
-        Fr tmp;
-        Fr::sub(tmp, fv, fi);
-        // den = den * tmp;
-        Fr::mul(den, den, tmp);
+        Fr sub;
+        Fr::sub(sub, fv, fi);
+        Fr div;
+        Fr::div(div, fv, sub);
+        Fr::mul(lambda, lambda, div);
     }
-    Fr denInv;
-    Fr::inv(denInv, den);
-
-    Fr lambda;
-    // lambda = num * denInv;
-    Fr::mul(lambda, num, denInv);
-
     return lambda;
 }
 
 // BTBF.KeyGen(1^λ, n, t, ℓ)
-BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell)
-{
+BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell){
     if (!initialized_) {
         throw std::runtime_error("BTBF::init() was not called");
     }
@@ -98,7 +91,7 @@ BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell)
     out.ell = ell;
     out.parties.resize(n);
 
-    // 1. Sample α, y, z in Z_p (we use Fr as scalar field)
+    // 1. Sample α, y, z in Z_p (Fr)
     Fr alpha, y, z;
     alpha.setByCSPRNG();
     y.setByCSPRNG();
@@ -138,7 +131,7 @@ BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell)
         Fr x = idx;
 
         Fr val = coef[0];
-        Fr pow = x;         // x^1
+        Fr pow = x;
 
         for (int k = 1; k < t; k++) {
             Fr term;
@@ -256,7 +249,7 @@ std::pair<BTBF::SymKey, BTBF::Ciphertext> BTBF::encaps(const PublicKey& pk, int 
     c.c0 = c0;
     c.c1 = c1;
     c.j  = j;
-    return { k, c };
+    return {k, c };
 }
 
 // BTBF.Dec(j, sk_i,b^{(j)}, c_b)
@@ -285,7 +278,7 @@ BTBF::SymKey BTBF::combine(const std::vector<int>& J, const std::vector<GT>& sha
 
     for (size_t idx = 0; idx < J.size(); idx++) {
         int i = J[idx];                // 1-based index of party
-        Fr lambda_i = lagrangeCoeffAtZero(J, i);
+        Fr lambda_i = lagrangeCoeff(J, i);
         GT term;
         GT::pow(term, shares[idx], lambda_i);
         GT::mul(W, W, term);
