@@ -18,8 +18,8 @@ public:
     using GT = mcl::bls12::GT;
     using Fr = mcl::bls12::Fr;
 
-    // H2 key = 256-bit string
-    using SymKey = std::array<uint8_t, 32>;
+    // H2 key
+    using SymKey = std::vector<uint8_t>;
 
     struct SecretKeyComponent {
         G1 k0; // in G1
@@ -62,7 +62,7 @@ public:
     static void init();
 
     // BTBF.KeyGen(1^λ, n, t, ℓ)
-    static KeyGenOutput keygen(int n, int t, int ell);
+    static KeyGenOutput keygen(int n, int t, int ell, int security_lambda);
 
     // BTBF.Enc(pk, j): returns (k, c)
     static std::pair<SymKey, Ciphertext> encaps(const PublicKey& pk, int j);
@@ -74,15 +74,20 @@ public:
     // J : 1-based indices of parties; shares : d_i in the same order as J.
     static SymKey combine(const std::vector<int>& J, const std::vector<GT>& shares);
 
+    static int getLambda(){
+        return security_lambda_bits_;
+    }
+
 private:
     static bool initialized_;
     static G1 g1_; // generator of G1
     static G2 g2_; // generator of G2
+    static int security_lambda_bits_;
 
     // H1 : N -> G1
     static G1 H1(int j);
 
-    // H2 : GT -> {0,1}^λ  (here λ = 256)
+    // H2 : GT -> {0,1}^λ
     static SymKey H2(const GT& w);
 
     //Lagrange coefficient λ_i^J for point i in J

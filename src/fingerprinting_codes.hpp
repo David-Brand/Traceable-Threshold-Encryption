@@ -54,18 +54,19 @@ private:
 
 class FingerprintingCode {
 public:
-    FingerprintingCode(std::size_t n, double e, std::mt19937_64& engine, std::vector<std::size_t>& permutation, std::size_t d_override = 0);
+    FingerprintingCode(std::size_t n, double e, float delta, std::mt19937_64& engine, std::vector<std::size_t>& permutation, std::size_t d_override = 0);
 
     std::size_t n() const { return n_; }
     double e() const { return e_; }
     std::size_t d() const { return d_; }
     std::size_t l() const { return l_; }
+    std::vector<std::size_t> permutation() const { return permutation_;}
 
     // Generate codeword for user
     void getCodeword(std::size_t user, PackedBitset& out) const;
 
     //returns indices of guilty users
-    std::vector<std::size_t> trace(const PackedBitset& x) const;
+    std::vector<std::size_t> trace(const PackedBitset& x, const PackedBitset& x_unreadable) const;
 
     //OR of two codewords
     void collude(std::size_t i, std::size_t j, PackedBitset& out) const;
@@ -81,16 +82,19 @@ private:
 
 class LogLengthCodes {
 public:
-    LogLengthCodes(std::size_t N, std::size_t c, double e);
+    LogLengthCodes(std::size_t N, std::size_t c, double e, float delta);
 
     std::size_t N() const { return N_; }
     std::size_t c() const { return c_; }
     std::size_t L() const { return L_; }
     std::size_t n() const { return n_; }
     std::size_t d() const { return d_; }
+    std::size_t totalLength() const {return total_length_; }
+    std::size_t blockLength() const {return block_length_; }
+    std::vector<FingerprintingCode> components() const { return components_;}
 
     //return index of most likely guilty word
-    std::size_t trace(const std::vector<PackedBitset>& x) const;
+    std::size_t trace(const std::vector<PackedBitset>& x, const std::vector<PackedBitset>& x_unreadable) const;
 
     std::vector<PackedBitset> collude(const std::vector<std::size_t>& coalition) const;
 

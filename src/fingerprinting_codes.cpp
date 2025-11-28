@@ -6,14 +6,12 @@ namespace fingerprinting {
 
 // ---------- FingerprintingCode implementation ----------
 
-FingerprintingCode::FingerprintingCode(std::size_t n, double e, std::mt19937_64& engine, std::vector<std::size_t>& permutation, std::size_t d_override)
-    : n_(n), e_(e), engine_(engine), permutation_(permutation)
-{
+FingerprintingCode::FingerprintingCode(std::size_t n, double e, float delta, std::mt19937_64& engine, std::vector<std::size_t>& permutation, std::size_t d_override) : n_(n), e_(e), engine_(engine), permutation_(permutation) {
     if (n_ < 2) throw std::invalid_argument("n must be at least 2");
     if (e_ <= 0.0 || e_ >= 1.0) throw std::invalid_argument("e must be in (0,1)");
 
     if (d_override == 0) {
-        double val = 2.0 * n_ * n_ * std::log((2.0 * n_) / e_);
+        double val = ((4 * std::pow(n_, 2))/std::pow(1-delta, 2)) * std::log((2.0 * n_) / e_);
         d_ = static_cast<std::size_t>(std::ceil(val));
     } else {
         d_ = d_override;
@@ -38,21 +36,32 @@ std::size_t FingerprintingCode::weight(const PackedBitset& x, std::size_t start,
     return tmp;
 }
 
-std::vector<std::size_t> FingerprintingCode::trace(const PackedBitset& x) const {
+std::vector<std::size_t> FingerprintingCode::trace(const PackedBitset& x, const PackedBitset& x_unreadable) const {
     std::vector<std::size_t> guilty;
     if (x.size() != l_) throw std::invalid_argument("trace: input bitset has wrong length");
 
-    if (weight(x, 0, d_) > 0) guilty.push_back(0);
+    if ((weight(x, 0, d_) > 0) || (weight(x_unreadable, 0, d_) > 0)) guilty.push_back(0);
 
     for (std::size_t i = 1; i + 1 < n_; ++i) {
         std::size_t k = weight(x, (i - 1) * d_, (i + 1) * d_);
         double kd2 = static_cast<double>(k) / 2.0;
         double val = kd2 - std::sqrt(kd2 * std::log((2.0 * n_) / e_));
         std::size_t w = weight(x, (i - 1) * d_, i * d_);
-        if (static_cast<double>(w) < val) guilty.push_back(i);
+        if (static_cast<double>(w) < val){ 
+            guilty.push_back(i);
+            continue;
+        }
+
+        std::size_t k_unreadable = weight(x_unreadable, (i - 1) * d_, (i + 1) * d_);
+        double kd2_unreadable = static_cast<double>(k_unreadable) / 2.0;
+        double val_unreadable = kd2_unreadable - std::sqrt(kd2_unreadable * std::log((2.0 * n_) / e_));
+        std::size_t w_unreadable = weight(x_unreadable, (i - 1) * d_, i * d_);
+        if (static_cast<double>(w_unreadable) < val_unreadable){ 
+            guilty.push_back(i);
+        }
     }
 
-    if (weight(x, l_ - d_, l_) < d_) guilty.push_back(n_ - 1);
+    if ((weight(x, l_ - d_, l_) < d_) || (weight(x_unreadable, l_ - d_, l_) > 0)) guilty.push_back(n_ - 1);
     
     return guilty;
 }
@@ -69,9 +78,7 @@ void FingerprintingCode::collude(std::size_t i, std::size_t j, PackedBitset& out
 
 // ---------- LogLengthCodes implementation ----------
 
-LogLengthCodes::LogLengthCodes(std::size_t N, std::size_t c, double e)
-    : N_(N), c_(c), e_(e)
-{
+LogLengthCodes::LogLengthCodes(std::size_t N, std::size_t c, double e, float delta) : N_(N), c_(c), e_(e) {
     if (c_ == 0) throw std::invalid_argument("c must be positive");
     if (N_ == 0) throw std::invalid_argument("N must be positive");
     if (e_ <= 0.0 || e_ >= 1.0) throw std::invalid_argument("e must be in (0,1)");
@@ -83,21 +90,22 @@ LogLengthCodes::LogLengthCodes(std::size_t N, std::size_t c, double e)
     n_ = 2 * c_;
     double valL = 2.0 * c_ * std::log((2.0 * N_) / e_);
     L_ = static_cast<std::size_t>(std::ceil(valL));
-    double valD = 2.0 * n_ * n_ * std::log((4.0 * n_ * L_) / e_);
+    double valD = ((4 * std::pow(n_, 2))/std::pow(1-delta, 2)) * std::log((4.0 * n_ * L_) / e_);
     d_ = static_cast<std::size_t>(std::ceil(valD));
     total_length_ = L_ * d_ * (n_-1);
     block_length_ = d_ * (n_ - 1);
 
     // error if memory usage would be too high
-    uint64_t totalBits = uint64_t(L_) * uint64_t(d_) * uint64_t(n_ - 1);
+    uint64_t totalBits = uint64_t(d_) * uint64_t(n_ - 1);
     double bytes = double(totalBits) / 8.0;
     const double GiB = 1024.0 * 1024.0 * 1024.0;
-    if (bytes > 8.0 * GiB)
+    if (bytes > 14.0 * GiB)
         throw std::runtime_error("LogLengthCodes: allocation too large (" + std::to_string(bytes / GiB) + " GiB). Aborting.");
 
     
     //compute permutations, bound to 100 repeating instances to save memory
-    permutations_.resize(100);
+    std::size_t pCount = L_ > 100 ? 100 : L_;
+    permutations_.resize(pCount);
     for(auto& permutation_ : permutations_) {
         permutation_.resize(block_length_);
         std::iota(permutation_.begin(), permutation_.end(), 0);
@@ -107,7 +115,7 @@ LogLengthCodes::LogLengthCodes(std::size_t N, std::size_t c, double e)
     //component initialization
     components_.reserve(L_);
     for (std::size_t i = 0; i < L_; ++i)
-        components_.emplace_back(n_, e_, engine_, permutations_[i%100], d_);
+        components_.emplace_back(n_, e_, delta, engine_, permutations_[i%100], d_);
     hiddenCode_ = createHiddenCode();
 }
 
@@ -151,7 +159,7 @@ std::vector<PackedBitset> LogLengthCodes::collude(
 }
 
 
-std::size_t LogLengthCodes::trace(const std::vector<PackedBitset>& x) const {
+std::size_t LogLengthCodes::trace(const std::vector<PackedBitset>& x, const std::vector<PackedBitset>& x_unreadable) const {
     if (x.size() != L_ || x[0].size() != block_length_)
         throw std::invalid_argument("LogLengthCodes::trace: bitset length mismatch");
 
@@ -159,7 +167,7 @@ std::size_t LogLengthCodes::trace(const std::vector<PackedBitset>& x) const {
 
     #pragma omp parallel for schedule(static)
     for (long long i = 0; i < static_cast<long long>(L_); ++i) {
-        auto guilty = components_[i].trace(x[static_cast<std::size_t>(i)]);
+        auto guilty = components_[i].trace(x[static_cast<std::size_t>(i)], x_unreadable[static_cast<std::size_t>(i)]);
         y[static_cast<std::size_t>(i)] = guilty.empty() ? 0 : guilty[0];
     }
     std::size_t bestIndex   = 0;

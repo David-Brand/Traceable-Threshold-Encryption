@@ -6,8 +6,7 @@
 #include <random>
 #include <unordered_set>
 
-static void printKey(const btbf::BTBF::SymKey& k, const char* label)
-{
+static void printKey(const btbf::BTBF::SymKey& k, const char* label){
     std::cout << label << ": 0x";
     for (auto b : k) {
         std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(b);
@@ -27,7 +26,7 @@ int main(){
                 std::cout << "n=" << n << ", t=" << t << ", ell=" << ell << "\n";
                 btbf::BTBF::init();
 
-                auto keygenOut = btbf::BTBF::keygen(n, t, ell);
+                auto keygenOut = btbf::BTBF::keygen(n, t, ell, 256);
 
                 std::uniform_int_distribution<int> distEll(1, ell);
                 int j = distEll(rng); // position to encapsulate to

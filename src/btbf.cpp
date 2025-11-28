@@ -11,6 +11,7 @@ namespace btbf {
 bool BTBF::initialized_ = false;
 BTBF::G1 BTBF::g1_;
 BTBF::G2 BTBF::g2_;
+int BTBF::security_lambda_bits_ = 256;
 
 void BTBF::init(){
     if (initialized_) return;
@@ -36,23 +37,61 @@ BTBF::G1 BTBF::H1(int j){
     return P;
 }
 
-// H2(W) : GT -> {0,1}^256
+// H2(W) : GT -> {0,1}^λ
 BTBF::SymKey BTBF::H2(const GT& w){
-    uint8_t buf[512];
-    size_t n = w.serialize(buf, sizeof(buf));
+    const size_t outLen = static_cast<size_t>((security_lambda_bits_ + 7) / 8);
 
-    Fr x;
-    if (n > 0) {
-        x.setHashOf(buf, n);
+    // Serialize W, use string if serialize fails
+    uint8_t wbuf[576];
+    size_t wn = w.serialize(wbuf, sizeof(wbuf));
+    std::string ws;
+    const uint8_t* srcPtr = nullptr;
+    size_t srcLen = 0;
+    if (wn > 0) {
+        srcPtr = wbuf;
+        srcLen = wn;
     } else {
-        //string representation if serialize fails
-        std::string s = w.getStr(16);
-        x.setHashOf(s.data(), s.size());
+        ws = w.getStr(16);
+        srcPtr = reinterpret_cast<const uint8_t*>(ws.data());
+        srcLen = ws.size();
     }
 
-    SymKey key{};
-    x.getLittleEndian(key.data(), key.size());
-    return key;
+    static const char domain[] = "BTBF-H2";
+    SymKey out;
+    out.reserve(outLen);
+
+    uint32_t counter = 0;
+    while (out.size() < outLen) {
+        uint8_t cnt[4] = {
+            static_cast<uint8_t>(counter & 0xFF),
+            static_cast<uint8_t>((counter >> 8) & 0xFF),
+            static_cast<uint8_t>((counter >> 16) & 0xFF),
+            static_cast<uint8_t>((counter >> 24) & 0xFF)
+        };
+        // Hash to Fr
+        Fr t;
+        std::vector<uint8_t> buf;
+        buf.reserve(sizeof(domain) - 1 + 4 + srcLen);
+        buf.insert(buf.end(), reinterpret_cast<const uint8_t*>(domain), reinterpret_cast<const uint8_t*>(domain) + sizeof(domain) - 1);
+        buf.insert(buf.end(), cnt, cnt + 4);
+        buf.insert(buf.end(), srcPtr, srcPtr + srcLen);
+        t.setHashOf(buf.data(), buf.size());
+
+        uint8_t block[32];
+        t.getLittleEndian(block, sizeof(block));
+
+        size_t need = outLen - out.size();
+        size_t take = std::min(need, sizeof(block));
+        out.insert(out.end(), block, block + take);
+
+        counter++;
+    }
+    // removing extra bits if lambda is not multiple of 8
+    const int extraBits = (8 - (security_lambda_bits_ & 7)) & 7;
+    if (extraBits != 0 && !out.empty()) {
+        out.back() &= static_cast<uint8_t>(0xFFu << extraBits);
+    }
+    return out;
 }
 
 // Lagrange coefficient λ_i^J for points in J
@@ -74,7 +113,7 @@ BTBF::Fr BTBF::lagrangeCoeff(const std::vector<int>& J, int i){
 }
 
 // BTBF.KeyGen(1^λ, n, t, ℓ)
-BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell){
+BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell, int security_lambda){
     if (!initialized_) {
         throw std::runtime_error("BTBF::init() was not called");
     }
@@ -84,6 +123,7 @@ BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell){
     if (ell <= 0) {
         throw std::invalid_argument("ell must be > 0");
     }
+    security_lambda_bits_ = security_lambda;
 
     KeyGenOutput out;
     out.n = n;

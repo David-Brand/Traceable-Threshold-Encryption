@@ -8,7 +8,7 @@ int main() {
 
     std::vector<std::size_t> Ns = {100, 1000};
     std::vector<double> Es = {0.2};
-    std::vector<std::size_t> coalition_sizes = {10, 50, 100};
+    std::vector<std::size_t> coalition_sizes = {50, 100};
 
     std::mt19937_64 rng(std::random_device{}());
 
@@ -49,11 +49,13 @@ int main() {
 
                 std::chrono::duration<double> tracing_time = tracing_stop - tracing_start;
                 std::cout << "coalition: [";
+                bool inC = false;
                 for (std::size_t i = 0; i < colluders.size(); ++i) {
                     std::cout << colluders[i] << (i + 1 < colluders.size() ? ", " : "");
+                    if(colluders[i] == guilty_user) inC = true;
                 }
                 std::cout << "]\n";
-                std::cout << "guilty user: " << guilty_user << '\n';
+                std::cout << "guilty user: " << guilty_user << (inC ? " (in coalition)" : " (not in coalition)") << '\n';
                 std::cout << "tracing time: " << tracing_time.count() << "\n\n";
                 } catch(const std::exception& e){
                     std::cout << "Exception: " << e.what() << "\n";
