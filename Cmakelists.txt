@@ -4,6 +4,7 @@ project(btbf_project LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_compile_options(/openmp)
 
 if (MSVC)
     # /MT in ALL configs (Debug/Release)
@@ -18,6 +19,8 @@ set(MCL_LIB "${MCL_ROOT}/lib/mcl.lib")
 add_executable(btbf
     src/main.cpp
     src/btbf.cpp
+    src/TTT.cpp
+    src/fingerprinting_codes.cpp
 )
 
 target_include_directories(btbf PRIVATE

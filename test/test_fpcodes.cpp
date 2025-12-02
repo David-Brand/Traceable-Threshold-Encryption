@@ -6,8 +6,8 @@
 int main() {
     using namespace fingerprinting;
 
-    std::vector<std::size_t> Ns = {100, 1000};
-    std::vector<double> Es = {0.2};
+    std::vector<std::size_t> Ns = {100};
+    std::vector<double> Es = {1/std::pow(2, 128)};
     std::vector<std::size_t> coalition_sizes = {50, 100};
 
     std::mt19937_64 rng(std::random_device{}());
@@ -29,8 +29,11 @@ int main() {
 
                 try{
                 auto creation_start = std::chrono::high_resolution_clock::now();
-                LogLengthCodes a(wordcount, t, p);
+                //LogLengthCodes a(wordcount, t, p, 0.0);
+                TardosCodes a(t, p);
+                a.writeCodeBook(wordcount);
                 auto creation_stop = std::chrono::high_resolution_clock::now();
+                std::cout << "code length: " << a.getLength() << '\n';
                 
 
                 std::chrono::duration<double> creation_time = creation_stop - creation_start;
@@ -44,7 +47,8 @@ int main() {
                 std::cout << "collusion time: " << collusion_time.count() << '\n';
 
                 auto tracing_start = std::chrono::high_resolution_clock::now();
-                std::size_t guilty_user = a.trace(illegal_word);
+                //std::size_t guilty_user = a.trace(illegal_word, std::vector<PackedBitset>(illegal_word.size(), PackedBitset(a.blockLength())));
+                std::vector<std::size_t> accused = a.trace(illegal_word);
                 auto tracing_stop = std::chrono::high_resolution_clock::now();
 
                 std::chrono::duration<double> tracing_time = tracing_stop - tracing_start;
@@ -52,10 +56,18 @@ int main() {
                 bool inC = false;
                 for (std::size_t i = 0; i < colluders.size(); ++i) {
                     std::cout << colluders[i] << (i + 1 < colluders.size() ? ", " : "");
-                    if(colluders[i] == guilty_user) inC = true;
+                    //if(colluders[i] == guilty_user) inC = true;
+                    for(auto acc : accused){
+                        if(colluders[i] == acc) inC = true;
+                    }
                 }
                 std::cout << "]\n";
-                std::cout << "guilty user: " << guilty_user << (inC ? " (in coalition)" : " (not in coalition)") << '\n';
+                std::cout << "accused: [";
+                for (std::size_t i = 0; i < accused.size(); ++i) {
+                    std::cout << accused[i] << (i + 1 < accused.size() ? ", " : "");
+                }
+                std::cout << (inC ? " (in coalition)" : " (not in coalition)") << "]\n";
+                //std::cout << "guilty user: " << guilty_user << (inC ? " (in coalition)" : " (not in coalition)") << '\n';
                 std::cout << "tracing time: " << tracing_time.count() << "\n\n";
                 } catch(const std::exception& e){
                     std::cout << "Exception: " << e.what() << "\n";

@@ -112,6 +112,39 @@ private:
     std::vector<std::vector<std::size_t>> createHiddenCode();
 };
 
+class TardosCodes{
+    public:
+    TardosCodes(std::size_t c, double e, std::size_t n = 0);
+
+    static std::pair<PackedBitset, std::vector<double>> generateCodeWord(const std::vector<double>& probabilities);
+    static std::vector<double> calculateProbabilities(std::size_t cs, double err, std::size_t new_words=0);
+    static std::pair<std::vector<PackedBitset>, std::vector<std::vector<double>>> generateCodeBook(const std::vector<double>& probabilities, std::size_t new_words);
+    static std::vector<std::size_t> trace(const std::vector<std::vector<double>>& U, PackedBitset& y, double z);
+
+    std::pair<PackedBitset, std::vector<double>> writeCodeWord();
+    std::pair<std::vector<PackedBitset>, std::vector<std::vector<double>>> writeCodeBook(std::size_t new_words);
+    std::vector<std::size_t> trace(PackedBitset& y);
+    PackedBitset collude(const std::vector<std::size_t>& coalition) const;
+
+    std::size_t c() const { return c_; }
+    std::size_t n() const { return n_; }
+    double e() const { return e_; }
+    double k() const { return k_; }
+    double Z() const { return Z_; }
+    std::size_t getLength() const { return l_; }
+    std::vector<double> getProbabilities() const { return probabilities_;}
+    std::vector<PackedBitset> getCodeBook() const { return codeBook_; }
+    std::vector<std::vector<double>> getU() const { return U_; }
+
+    private:
+    std::vector<double> probabilities_;
+    std::vector<PackedBitset> codeBook_;
+    std::vector<std::vector<double>> U_;
+
+    std::size_t l_, c_, n_;
+    double e_, k_, Z_;
+};
+
 } // namespace fingerprinting
 
 #endif // FINGERPRINTING_CODES_HPP

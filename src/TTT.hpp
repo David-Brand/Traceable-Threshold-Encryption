@@ -1,12 +1,11 @@
-#ifndef TRACEABLE_TRESHOLD_ENCRYPTION
-#define TRACEABLE_TRESHOLD_ENCRYPTION
+#pragma once
 
 #include "btbf.hpp"
 #include "fingerprinting_codes.hpp"
 #include <functional>
 
 
-namespace TTT{
+namespace ttt{
     using namespace btbf;
     using namespace fingerprinting;
 
@@ -18,6 +17,7 @@ namespace TTT{
     struct TTTKeyGenOutput {
         BTBF::PublicKey pk;
         std::vector<std::vector<SecretKeyComponent_b>> parties; // size n
+        std::vector<std::vector<double>> tk; // tracing key
     };
 
     class TTT {
@@ -27,21 +27,20 @@ namespace TTT{
         using GT = mcl::bls12::GT;
         using Fr = mcl::bls12::Fr;
 
-        TTT();
+        TTT(int t = 2, int security_lambda = 4);
         TTTKeyGenOutput keygen(int n, int t, int security_lambda, double e) const;
         std::pair<BTBF::SymKey, BTBF::Ciphertext> enc(const BTBF::PublicKey& pk) const;
-        GT dec(const SecretKeyComponent_b& sk_b, const BTBF::Ciphertext& c) const;
-        BTBF::SymKey combine(const std::vector<int>& J, const std::vector<GT>& shares) const;
-        std::size_t trace(BTBF::PublicKey pk, const std::function<bool(const BTBF::Ciphertext&, const BTBF::SymKey&)>& D) const;
+        static GT dec(const SecretKeyComponent_b& sk_b, const BTBF::Ciphertext& c);
+        static BTBF::SymKey combine(const std::vector<int>& J, const std::vector<GT>& shares);
+        std::vector<std::size_t> trace(BTBF::PublicKey pk, std::vector<std::vector<double>> tk, const std::function<bool(const BTBF::Ciphertext&, const BTBF::SymKey&)>& D) const;
 
-        fingerprinting::LogLengthCodes fingerPrintingCode() const { return fingerPrintingCode_;}
+        fingerprinting::TardosCodes fingerPrintingCode() const { return fingerPrintingCode_;}
 
         private:
-        fingerprinting::LogLengthCodes& fingerPrintingCode_;
+        fingerprinting::TardosCodes& fingerPrintingCode_;
+        int t_, security_lambda_;
 
         int TrD(BTBF::PublicKey pk, std::size_t j, double N, bool bk, bool b0, bool b1, const std::function<bool(const BTBF::Ciphertext&, const BTBF::SymKey&)>& D) const;
 
     };
 }
-
-#endif

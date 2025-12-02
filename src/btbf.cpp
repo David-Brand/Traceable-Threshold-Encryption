@@ -187,12 +187,6 @@ BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell, int security_lambda){
         s[i] = val; // s_{i+1}
     }
 
-    // Precompute H1(j) for j=1..ell
-    std::vector<G1> h1(ell);
-    for (int j = 0; j < ell; j++) {
-        h1[j] = H1(j + 1);
-    }
-
     // 4. For i=1..n and j=1..ℓ:
     //    k(0)_0 ← H1(j)^{z s_i}, k(0)_1 ← g2^{z s_i}, sk_i,0^{(j)} = (k(0)_0, k(0)_1)
     //    k(1)_0 ← H1(j)^{y s_i}, k(1)_1 ← g2^{y s_i}, sk_i,1^{(j)} = (k(1)_0, k(1)_1)
@@ -207,10 +201,12 @@ BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell, int security_lambda){
         Fr ysi;
         Fr::mul(ysi, y, s[i]);
 
+        #pragma omp parallel for schedule(static)
         for (int j = 0; j < ell; j++) {
+            G1 hj = H1(j + 1);
             // left key
             SecretKeyComponent left;
-            left.k0 = h1[j];
+            left.k0 = hj;
             // left.k0 = H1(j)^{z s_i}
             G1::mul(left.k0, left.k0, zsi);
             // left.k1 = g2^{z s_i}
@@ -219,7 +215,7 @@ BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell, int security_lambda){
 
             // right key
             SecretKeyComponent right;
-            right.k0 = h1[j];
+            right.k0 = hj;
             // right.k0 = H1(j)^{y s_i}
             G1::mul(right.k0, right.k0, ysi);
             // right.k1 = g2^{y s_i}
