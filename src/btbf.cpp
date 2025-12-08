@@ -1,4 +1,5 @@
 #include "btbf.hpp"
+#include "Shamir.hpp"
 
 #include <algorithm>
 #include <stdexcept>
@@ -159,33 +160,9 @@ BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell, int security_lambda){
 
     // Shamir t-out-of-n secret sharing s_1,...,s_n of α
     // polynomial f(x) = alpha + a1 x + ... + a_{t-1} x^{t-1}
-    std::vector<Fr> coef(t);
-    coef[0] = alpha;
-    for (int k = 1; k < t; k++) {
-        coef[k].setByCSPRNG();
-    }
 
-    std::vector<Fr> s(n);
-    for (int i = 0; i < n; i++) {
-        int idx = i + 1;    // shares at positions 1..n
-        Fr x = idx;
-
-        Fr val = coef[0];
-        Fr pow = x;
-
-        for (int k = 1; k < t; k++) {
-            Fr term;
-            // term = coef[k] * pow;
-            Fr::mul(term, coef[k], pow);
-
-            // val = val + term;
-            Fr::add(val, val, term);
-
-            // pow = pow * x;
-            Fr::mul(pow, pow, x);
-        }
-        s[i] = val; // s_{i+1}
-    }
+    std::vector<Fr> s;
+    s = share<Fr>(alpha, n, t);
 
     // 4. For i=1..n and j=1..ℓ:
     //    k(0)_0 ← H1(j)^{z s_i}, k(0)_1 ← g2^{z s_i}, sk_i,0^{(j)} = (k(0)_0, k(0)_1)

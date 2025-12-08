@@ -1,66 +1,61 @@
 #include "TTT.hpp"
 
 namespace ttt{
-    auto tmp = fingerprinting::TardosCodes(2, 0.5);
-
-    TTT::TTT(int t, int security_lambda) : t_(t), security_lambda_(security_lambda), fingerPrintingCode_(tmp) {
-        fingerPrintingCode_ = fingerprinting::TardosCodes(t, 1 / std::pow(2, security_lambda));
-        BTBF::init();
+    TTT::TTT(int t, int security_lambda) : t_(t), security_lambda_(security_lambda){
+        fingerPrintingCode_ =  new fingerprinting::TardosCodes(t, 1 / std::pow(2, security_lambda));
+        BTIB* tmp = new BTIB_KEM1();
+        BTE = new CCA_BT_KEM(tmp);
     }
 
-    TTTKeyGenOutput TTT::keygen(int n, int t, int security_lambda, double e) const{
+    TTTKeyGenOutput TTT::keygen(int n, int t, int security_lambda, double e){
         TTTKeyGenOutput out;
         float delta = (1/2 - e) / (1/2 - 2/std::sqrt(security_lambda));
 
         if(t != t_ || security_lambda != security_lambda_){
-            fingerPrintingCode_ = fingerprinting::TardosCodes(t, 1 / std::pow(2, security_lambda));
+            t_ = t;
+            security_lambda_ = security_lambda;
+            fingerPrintingCode_ = new fingerprinting::TardosCodes(t, 1 / std::pow(2, security_lambda));
         }
 
-        std::size_t l = fingerPrintingCode_.getLength();
-
-        BTBF::KeyGenOutput btbfOut = BTBF::keygen(n, t, l, security_lambda);
-        out.pk = btbfOut.pk;
+        std::size_t l = fingerPrintingCode_->getLength();
+        BTIBKeyGenOutput btOut = BTE->KGen(n, t, l, security_lambda);
+        out.pk = btOut.pk;
 
         for(int i = 0; i<n; i++){
-            std::vector<SecretKeyComponent_b> sk_b_vec;
-            auto [fingerprint, U] = fingerprinting::TardosCodes::generateCodeWord(fingerPrintingCode_.getProbabilities());
+            SecretKey sk;
+            auto [fingerprint, U] = fingerPrintingCode_->writeCodeWord();
             for(std::size_t j = 0; j<l; j++){
-                SecretKeyComponent_b sk;
                 if (fingerprint.get(j)){    //right key
-                    sk.sk_b = btbfOut.parties[i].right[j];
-                    sk.b = true;
+                    sk.sk_components.push_back(btOut.parties[i].right[j]);
                 } else{ //left key
-                    sk.sk_b = btbfOut.parties[i].left[j];
-                    sk.b = false;
+                    sk.sk_components.push_back(btOut.parties[i].left[j]);
                 }
-                sk_b_vec.push_back(sk);
             }
-            out.parties.push_back(sk_b_vec);
+            out.parties.push_back(sk);
             out.tk.push_back(U);
         }
         return out;
     }
 
-    std::pair<BTBF::SymKey, BTBF::Ciphertext> TTT::enc(const BTBF::PublicKey& pk) const{
+    std::pair<GT, std::pair<Ciphertext, proof>> TTT::enc(const std::shared_ptr<PublicKey>& pk){
         std::mt19937_64 random(std::random_device{}());
-        std::uniform_int_distribution<int> dist(1, fingerPrintingCode_.getLength());
-        return BTBF::encaps(pk, dist(random));
+        std::uniform_int_distribution<int> dist(1, fingerPrintingCode_->getLength());
+        return BTE->Encrypt(pk, dist(random));
     }
 
-    TTT::GT TTT::dec(const SecretKeyComponent_b& sk_b, const BTBF::Ciphertext& c){
-        return BTBF::decShare(sk_b.sk_b, sk_b.b ? c.c1 : c.c0);
+    std::pair<bool, std::shared_ptr<idkShare>> TTT::dec(const SecretKey& sk, int i, const Ciphertext& c){
+        return BTE->PDec(fingerPrintingCode_->getBit(i, c.j), *sk.sk_components[c.j], c);
     }
 
-    BTBF::SymKey TTT::combine(const std::vector<int>& J, const std::vector<GT>& shares){
-        return BTBF::combine(J, shares);
+    GT TTT::combine(const std::vector<int>& J, const std::vector<std::pair<bool, std::shared_ptr<idkShare>>>& shares, const Ciphertext& c){
+        return BTE->Comb(J, shares, c);
     }
 
-    std::vector<std::size_t> TTT::trace(BTBF::PublicKey pk, std::vector<std::vector<double>> tk, const std::function<bool(const BTBF::Ciphertext&, const BTBF::SymKey&)>& D) const{
-        int lambda = BTBF::getLambda();
-        auto N = std::pow(lambda, 2);
-        auto B = std::pow(lambda, 3.0/2.0);
+    std::vector<std::size_t> TTT::trace(const std::shared_ptr<PublicKey>& pk, std::vector<std::vector<double>> tk, const std::function<bool(const Ciphertext&, const GT&)>& D){
+        auto N = std::pow(security_lambda_, 2);
+        auto B = std::pow(security_lambda_, 3.0/2.0);
 
-        auto totalLength = fingerPrintingCode_.getLength();
+        auto totalLength = fingerPrintingCode_->getLength();
 
         PackedBitset x(totalLength);
 
@@ -79,20 +74,20 @@ namespace ttt{
                 x.set(j, false);
             }
         }
-        return fingerprinting::TardosCodes::trace(tk, x, fingerPrintingCode_.Z());
+        return fingerprinting::TardosCodes::trace(tk, x, fingerPrintingCode_->Z());
     }
 
-    int TTT::TrD(BTBF::PublicKey pk, std::size_t j, double N, bool bk, bool b0, bool b1, const std::function<bool(const BTBF::Ciphertext&, const BTBF::SymKey&)>& D) const{
+    int TTT::TrD(const std::shared_ptr<PublicKey>& pk, std::size_t j, double N, bool bk, bool b0, bool b1, const std::function<bool(const Ciphertext&, const GT&)>& D){
         int ctr = 0;
 
         #pragma omp parallel for reduction(+:ctr)
         for (int h = 0; h < (int)N; h++) {
-            auto c0 = BTBF::encaps(pk, j);
-            auto c1 = BTBF::encaps(pk, j);
-            BTBF::Ciphertext c;
+            auto c0 = BTE->Encrypt(pk, j);
+            auto c1 = BTE->Encrypt(pk, j);
+            Ciphertext c;
             c.j = j;
-            c.c0 = b0 ? c1.second.c0 : c0.second.c0;
-            c.c1 = b1 ? c1.second.c1 : c0.second.c1;
+            c.c0 = b0 ? c1.second.first.c0 : c0.second.first.c0;
+            c.c1 = b1 ? c1.second.first.c1 : c0.second.first.c1;
             if(D(c, bk ? c1.first : c0.first)){
                 ctr++;
             }

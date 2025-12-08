@@ -125,6 +125,9 @@ class TardosCodes{
     std::pair<std::vector<PackedBitset>, std::vector<std::vector<double>>> writeCodeBook(std::size_t new_words);
     std::vector<std::size_t> trace(PackedBitset& y);
     PackedBitset collude(const std::vector<std::size_t>& coalition) const;
+    bool getBit(std::size_t user, std::size_t pos) const {
+        return codeBook_[user].get(pos);
+    }
 
     std::size_t c() const { return c_; }
     std::size_t n() const { return n_; }

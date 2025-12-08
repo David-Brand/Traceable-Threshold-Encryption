@@ -21,6 +21,9 @@ add_executable(btbf
     src/btbf.cpp
     src/TTT.cpp
     src/fingerprinting_codes.cpp
+    src/BTIB.cpp
+    src/CCA_BT_KEM.cpp
+    src/SignatureScheme.cpp
 )
 
 target_include_directories(btbf PRIVATE
