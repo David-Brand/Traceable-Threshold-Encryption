@@ -10,9 +10,6 @@
 #include <string>
 
 namespace btbf {
-
-class BTBF {
-public:
     using G1 = mcl::bls12::G1;
     using G2 = mcl::bls12::G2;
     using GT = mcl::bls12::GT;
@@ -33,6 +30,7 @@ public:
     };
 
     struct PublicKey {
+        G1 Q;
         G1 X; // g1^{α y z}
         G1 Y; // g1^y
         G1 Z; // g1^z
@@ -50,29 +48,31 @@ public:
     };
 
     struct KeyGenOutput {
-        PublicKey pk;
+        PublicKey* public_key;
         // pkc = ⊥ in the scheme --> omitted
-        std::vector<PartySecret> parties; // size n
+        std::vector<PartySecret> parties; // size num_parties
         int n;
         int t;
         int ell;
     };
 
+class BTBF {
+public:
     // Must be called once before using any other BTBF functions.
     static void init();
 
-    // BTBF.KeyGen(1^λ, n, t, ℓ)
-    static KeyGenOutput keygen(int n, int t, int ell, int security_lambda);
+    // BTBF.KeyGen(1^λ, num_parties, decryption_threshold, ℓ)
+    static KeyGenOutput keygen(int num_parties, int decryption_threshold, int fingerprint_length, int security_lambda);
 
-    // BTBF.Enc(pk, j): returns (k, c)
-    static std::pair<SymKey, Ciphertext> encaps(const PublicKey& pk, int j);
+    // BTBF.Enc(public_key, j): returns (k, c)
+    static std::pair<SymKey, Ciphertext> encaps(const PublicKey* public_key, int j);
 
     // BTBF.Dec(j, sk_i,b^{(j)}, c_b) -> d_i in GT
     static GT decShare(const SecretKeyComponent& sk_i_b, const CiphertextComponent& c_b);
 
-    // BTBF.Combine(pkc = ⊥, j, c, J, {d_i}_{i∈J}) -> k
-    // J : 1-based indices of parties; shares : d_i in the same order as J.
-    static SymKey combine(const std::vector<int>& J, const std::vector<GT>& shares);
+    // BTBF.Combine(pkc = ⊥, j, c, providing_parties, {d_i}_{i∈providing_parties}) -> k
+    // providing_parties : 1-based indices of parties; shares : d_i in the same order as providing_parties.
+    static SymKey combine(const std::vector<int>& providing_parties, const std::vector<GT>& shares);
 
     static int getLambda(){
         return security_lambda_bits_;
@@ -90,7 +90,7 @@ private:
     // H2 : GT -> {0,1}^λ
     static SymKey H2(const GT& w);
 
-    //Lagrange coefficient λ_i^J for point i in J
+    //Lagrange coefficient λ_i^providing_parties for point i in providing_parties
     static Fr lagrangeCoeff(const std::vector<int>& J, int i);
 };
 

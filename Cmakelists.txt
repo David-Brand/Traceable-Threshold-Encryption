@@ -19,11 +19,10 @@ set(MCL_LIB "${MCL_ROOT}/lib/mcl.lib")
 add_executable(btbf
     src/main.cpp
     src/btbf.cpp
+    src/btddh.cpp
     src/TTT.cpp
     src/fingerprinting_codes.cpp
-    src/BTIB.cpp
-    src/CCA_BT_KEM.cpp
-    src/SignatureScheme.cpp
+    src/ProofSystems.cpp
 )
 
 target_include_directories(btbf PRIVATE

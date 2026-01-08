@@ -10,9 +10,9 @@ using namespace mcl::bls12;
 namespace btbf {
 
 bool BTBF::initialized_ = false;
-BTBF::G1 BTBF::g1_;
-BTBF::G2 BTBF::g2_;
-int BTBF::security_lambda_bits_ = 256;
+G1 BTBF::g1_;
+G2 BTBF::g2_;
+int BTBF::security_lambda_bits_ = 128;
 
 void BTBF::init(){
     if (initialized_) return;
@@ -31,7 +31,7 @@ void BTBF::init(){
 }
 
 // H1(j) : N -> G1
-BTBF::G1 BTBF::H1(int j){
+G1 BTBF::H1(int j){
     G1 P;
     std::string msg = std::to_string(j);
     hashAndMapToG1(P, msg.data(), msg.size());
@@ -39,7 +39,7 @@ BTBF::G1 BTBF::H1(int j){
 }
 
 // H2(W) : GT -> {0,1}^λ
-BTBF::SymKey BTBF::H2(const GT& w){
+SymKey BTBF::H2(const GT& w){
     const size_t outLen = static_cast<size_t>((security_lambda_bits_ + 7) / 8);
 
     // Serialize W, use string if serialize fails
@@ -96,7 +96,7 @@ BTBF::SymKey BTBF::H2(const GT& w){
 }
 
 // Lagrange coefficient λ_i^J for points in J
-BTBF::Fr BTBF::lagrangeCoeff(const std::vector<int>& J, int i){
+Fr BTBF::lagrangeCoeff(const std::vector<int>& J, int i){
     Fr fi = i;
     Fr lambda = 1;
 
@@ -113,13 +113,13 @@ BTBF::Fr BTBF::lagrangeCoeff(const std::vector<int>& J, int i){
     return lambda;
 }
 
-// BTBF.KeyGen(1^λ, n, t, ℓ)
-BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell, int security_lambda){
+// BTBF.KeyGen(1^λ, num_parties, decryption_threshold, ℓ)
+KeyGenOutput BTBF::keygen(int num_parties, int decryption_threshold, int ell, int security_lambda){
     if (!initialized_) {
         throw std::runtime_error("BTBF::init() was not called");
     }
-    if (t <= 0 || t > n) {
-        throw std::invalid_argument("t must be in [1, n]");
+    if (decryption_threshold <= 0 || decryption_threshold > num_parties) {
+        throw std::invalid_argument("decryption_threshold must be in [1, num_parties]");
     }
     if (ell <= 0) {
         throw std::invalid_argument("ell must be > 0");
@@ -127,10 +127,11 @@ BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell, int security_lambda){
     security_lambda_bits_ = security_lambda;
 
     KeyGenOutput out;
-    out.n = n;
-    out.t = t;
+    out.n = num_parties;
+    out.t = decryption_threshold;
     out.ell = ell;
-    out.parties.resize(n);
+    out.parties.resize(num_parties);
+    out.public_key = new PublicKey();
 
     // 1. Sample α, y, z in Z_p (Fr)
     Fr alpha, y, z;
@@ -154,20 +155,20 @@ BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell, int security_lambda){
     G1 Z;
     G1::mul(Z, g1_, z);
 
-    out.pk.X = X;
-    out.pk.Y = Y;
-    out.pk.Z = Z;
+    out.public_key->X = X;
+    out.public_key->Y = Y;
+    out.public_key->Z = Z;
 
     // Shamir t-out-of-n secret sharing s_1,...,s_n of α
     // polynomial f(x) = alpha + a1 x + ... + a_{t-1} x^{t-1}
 
     std::vector<Fr> s;
-    s = share<Fr>(alpha, n, t);
+    s = share<Fr>(alpha, num_parties, decryption_threshold);
 
-    // 4. For i=1..n and j=1..ℓ:
+    // 4. For i=1..num_parties and j=1..ℓ:
     //    k(0)_0 ← H1(j)^{z s_i}, k(0)_1 ← g2^{z s_i}, sk_i,0^{(j)} = (k(0)_0, k(0)_1)
     //    k(1)_0 ← H1(j)^{y s_i}, k(1)_1 ← g2^{y s_i}, sk_i,1^{(j)} = (k(1)_0, k(1)_1)
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < num_parties; i++) {
         PartySecret ps;
         ps.left.resize(ell);
         ps.right.resize(ell);
@@ -206,8 +207,8 @@ BTBF::KeyGenOutput BTBF::keygen(int n, int t, int ell, int security_lambda){
     return out;
 }
 
-// BTBF.Enc(pk, j)
-std::pair<BTBF::SymKey, BTBF::Ciphertext> BTBF::encaps(const PublicKey& pk, int j){
+// BTBF.Enc(public_key, j)
+std::pair<SymKey, Ciphertext> BTBF::encaps(const PublicKey* public_key, int j){
     if (!initialized_) {
         throw std::runtime_error("BTBF::init() was not called");
     }
@@ -222,7 +223,7 @@ std::pair<BTBF::SymKey, BTBF::Ciphertext> BTBF::encaps(const PublicKey& pk, int 
 
     // W = e(X, g2)^r
     GT W;
-    pairing(W, pk.X, g2_);
+    pairing(W, public_key->X, g2_);
     GT::pow(W, W, r);
     // k = H2(W)
     SymKey k = H2(W);
@@ -237,7 +238,7 @@ std::pair<BTBF::SymKey, BTBF::Ciphertext> BTBF::encaps(const PublicKey& pk, int 
 
     // Y_r = Y^r
     G1 Y_r;
-    G1::mul(Y_r, pk.Y, r);
+    G1::mul(Y_r, public_key->Y, r);
     // Hj_t0 = Hj^{t0}
     G1 Hj_t0;
     G1::mul(Hj_t0, Hj, t0);
@@ -251,7 +252,7 @@ std::pair<BTBF::SymKey, BTBF::Ciphertext> BTBF::encaps(const PublicKey& pk, int 
 
     // Z_r = Z^r
     G1 Z_r;
-    G1::mul(Z_r, pk.Z, r);
+    G1::mul(Z_r, public_key->Z, r);
     // Hj_t1 = Hj^{t1}
     G1 Hj_t1;
     G1::mul(Hj_t1, Hj, t1);
@@ -266,7 +267,7 @@ std::pair<BTBF::SymKey, BTBF::Ciphertext> BTBF::encaps(const PublicKey& pk, int 
 }
 
 // BTBF.Dec(j, sk_i,b^{(j)}, c_b)
-BTBF::GT BTBF::decShare(const SecretKeyComponent& sk_i_b, const CiphertextComponent& c_b){
+GT BTBF::decShare(const SecretKeyComponent& sk_i_b, const CiphertextComponent& c_b){
     GT e1, e2;
     pairing(e1, c_b.v, sk_i_b.k1);  // e(v, k1)
     pairing(e2, sk_i_b.k0, c_b.u);  // e(k0, u)
@@ -278,7 +279,7 @@ BTBF::GT BTBF::decShare(const SecretKeyComponent& sk_i_b, const CiphertextCompon
 }
 
 // BTBF.Combine(pkc=⊥, j, c, J, {d_i}_{i∈J})
-BTBF::SymKey BTBF::combine(const std::vector<int>& J, const std::vector<GT>& shares){
+SymKey BTBF::combine(const std::vector<int>& J, const std::vector<GT>& shares){
     if (J.size() != shares.size()) {
         throw std::invalid_argument("J and shares must have same length");
     }

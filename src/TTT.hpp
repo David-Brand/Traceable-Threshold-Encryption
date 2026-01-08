@@ -1,42 +1,74 @@
 #pragma once
 
-#include "CCA_BT_KEM.hpp"
+#include "btbf.hpp"
+#include "btddh.hpp"
 #include "fingerprinting_codes.hpp"
 #include <functional>
+#include <memory>
 
 
 namespace ttt{
-    using namespace ccakem;
+    using namespace btbf;
+    using namespace btddh;
     using namespace fingerprinting;
 
     struct SecretKey {
-        std::vector<std::shared_ptr<SecretKeyComponent>> sk_components;
+        std::vector<SecretKeyComponent> sk_components;
+    };
+
+    struct SecretKey_ddh{
+        std::vector<SecretKeyComponent_ddh> sk_components;
     };
 
     struct TTTKeyGenOutput {
-        std::shared_ptr<PublicKey> pk;
-        std::vector<SecretKey> parties; // size n
-        std::vector<std::vector<double>> tk; // tracing key
+        PublicKey* public_key;
+        std::vector<SecretKey> parties; // size user_count
+        std::vector<std::vector<double>> tracing_key; // tracing key
     };
 
-    class TTT {
+    struct TTTKeyGenOutput_ddh {
+        PublicKey_ddh* public_key;
+        std::vector<SecretKey_ddh> parties; // size user_count
+        std::vector<std::vector<double>> tracing_key; // tracing key
+    };
+
+    class TTT_BTBF {
         public:
 
-        TTT(int t = 2, int security_lambda = 4);
-        TTTKeyGenOutput keygen(int n, int t, int security_lambda, double e);
-        std::pair<GT, std::pair<Ciphertext, proof>> enc(const std::shared_ptr<PublicKey>& pk);
-        std::pair<bool, std::shared_ptr<idkShare>> dec(const SecretKey& sk, int i, const Ciphertext& c);
-        GT combine(const std::vector<int>& J, const std::vector<std::pair<bool, std::shared_ptr<idkShare>>>& shares, const Ciphertext& c);
-        std::vector<std::size_t> trace(const std::shared_ptr<PublicKey>& pk, std::vector<std::vector<double>> tk, const std::function<bool(const Ciphertext&, const GT&)>& D);
+        TTT_BTBF(int decryption_threshold = 2, int security_lambda = 4);
+        TTTKeyGenOutput keygen(int user_count, int decryption_threshold, int security_lambda, double decoder_error);
+        std::pair<SymKey, Ciphertext> enc(const PublicKey* public_key);
+        GT dec(const SecretKey& sk, int i, const Ciphertext& c);
+        SymKey combine(const std::vector<int>& J, const std::vector<GT>& shares);
+        std::vector<std::size_t> trace(const PublicKey* public_key, std::vector<std::vector<double>> tk, const std::function<bool(const Ciphertext&, const SymKey&)>& D);
 
         fingerprinting::TardosCodes fingerPrintingCode() { return *fingerPrintingCode_;}
 
         private:
         fingerprinting::TardosCodes* fingerPrintingCode_;
-        int t_, security_lambda_;
-        CCA_BT_KEM* BTE;
+        int decryption_threshold_, security_lambda_;
+        BTBF* BTE;
 
-        int TrD(const std::shared_ptr<PublicKey>& pk, std::size_t j, double N, bool bk, bool b0, bool b1, const std::function<bool(const Ciphertext&, const GT&)>& D);
+        int TrD(const PublicKey* public_key, std::size_t j, double N, bool bk, bool b0, bool b1, const std::function<bool(const Ciphertext&, const SymKey&)>& D);
 
+    };
+
+    class TTT_BTDDH {
+        public:
+
+        TTT_BTDDH(int decryption_threshold = 2, int security_lambda = 4);
+        TTTKeyGenOutput_ddh keygen(int n, int decryption_threshold, int security_lambda, double decoder_error);
+        std::pair<G, Ciphertext_ddh> enc(const PublicKey_ddh* public_key);
+        G dec(const SecretKey_ddh& sk, int i, const Ciphertext_ddh& c);
+        G combine(const std::vector<int>& J, const std::vector<G>& shares);
+        std::vector<std::size_t> trace(const PublicKey_ddh* public_key, std::vector<std::vector<double>> tk, const std::function<bool(const Ciphertext_ddh&, const G&)>& D);
+        fingerprinting::TardosCodes fingerPrintingCode() { return *fingerPrintingCode_;}
+
+        private:
+        fingerprinting::TardosCodes* fingerPrintingCode_;
+        int decryption_threshold_, security_lambda_;
+        BTDDH* BTE;
+
+        int TrD(const PublicKey_ddh* public_key, std::size_t j, double N, bool bk, bool b0, bool b1, const std::function<bool(const Ciphertext_ddh&, const G&)>& D);
     };
 }

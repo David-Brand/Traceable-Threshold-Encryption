@@ -54,13 +54,15 @@ private:
 
 class FingerprintingCode {
 public:
-    FingerprintingCode(std::size_t n, double e, float delta, std::mt19937_64& engine, std::vector<std::size_t>& permutation, std::size_t d_override = 0);
+    FingerprintingCode(std::size_t num_fingerprints, double tracing_error, float delta, std::mt19937_64* engine, std::vector<std::size_t>* permutation, std::size_t d_override = 0);
 
-    std::size_t n() const { return n_; }
-    double e() const { return e_; }
-    std::size_t d() const { return d_; }
-    std::size_t l() const { return l_; }
-    std::vector<std::size_t> permutation() const { return permutation_;}
+    std::size_t get_num_fingerprints() const { return num_fingerprints_; }
+    double get_tracing_error() const { return tracing_error_; }
+    std::size_t get_block_length() const { return block_length_; }
+    std::size_t get_word_length() const { return word_length_; }
+    std::vector<std::size_t> get_permutation() const { return *permutation_;}
+
+    std::size_t getLength() const {return word_length_; }
 
     // Generate codeword for user
     void getCodeword(std::size_t user, PackedBitset& out) const;
@@ -68,29 +70,28 @@ public:
     //returns indices of guilty users
     std::vector<std::size_t> trace(const PackedBitset& x, const PackedBitset& x_unreadable) const;
 
-    //OR of two codewords
-    void collude(std::size_t i, std::size_t j, PackedBitset& out) const;
+    PackedBitset collude(const std::vector<std::size_t>& coalition) const;
 
 private:
-    std::size_t n_, d_, l_;
-    double e_;
-    std::vector<std::size_t>& permutation_;
-    std::mt19937_64& engine_;
+    std::size_t num_fingerprints_, block_length_, word_length_;
+    double tracing_error_;
+    std::vector<std::size_t>* permutation_;
+    std::mt19937_64* engine_;
 
     std::size_t weight(const PackedBitset& x, std::size_t start, std::size_t end) const;
 };
 
 class LogLengthCodes {
 public:
-    LogLengthCodes(std::size_t N, std::size_t c, double e, float delta);
+    LogLengthCodes(std::size_t NumFingerprints, std::size_t coalition_threshold, double tracing_error, float delta);
 
-    std::size_t N() const { return N_; }
-    std::size_t c() const { return c_; }
-    std::size_t L() const { return L_; }
-    std::size_t n() const { return n_; }
-    std::size_t d() const { return d_; }
-    std::size_t totalLength() const {return total_length_; }
-    std::size_t blockLength() const {return block_length_; }
+    std::size_t NumFingerprints() const { return NumFingerprints_; }
+    std::size_t coalition_threshold() const { return coalition_threshold_; }
+    std::size_t component_count() const { return component_count_; }
+    std::size_t word_length() const { return word_length_; }
+    std::size_t block_length() const { return block_length_; }
+    std::size_t getLength() const {return total_length_; }
+    std::size_t componentLength() const {return component_length_; }
     std::vector<FingerprintingCode> components() const { return components_;}
 
     //return index of most likely guilty word
@@ -102,8 +103,8 @@ public:
     void getLLCodeword(std::size_t user, std::vector<PackedBitset>& out) const;
 
 private:
-    std::size_t N_, c_, L_, n_, d_, total_length_, block_length_;
-    double e_;
+    std::size_t NumFingerprints_, coalition_threshold_, component_count_, word_length_, block_length_, total_length_, component_length_;
+    double tracing_error_;
     std::vector<FingerprintingCode> components_;
     std::vector<std::vector<std::size_t>> hiddenCode_;
     std::mt19937_64 engine_;
@@ -114,7 +115,7 @@ private:
 
 class TardosCodes{
     public:
-    TardosCodes(std::size_t c, double e, std::size_t n = 0);
+    TardosCodes(std::size_t coalition_threshold, double tracing_error, std::size_t num_fingerprints = 0);
 
     static std::pair<PackedBitset, std::vector<double>> generateCodeWord(const std::vector<double>& probabilities);
     static std::vector<double> calculateProbabilities(std::size_t cs, double err, std::size_t new_words=0);
@@ -129,12 +130,12 @@ class TardosCodes{
         return codeBook_[user].get(pos);
     }
 
-    std::size_t c() const { return c_; }
-    std::size_t n() const { return n_; }
-    double e() const { return e_; }
+    std::size_t get_coalition_threshold() const { return coalition_threshold_; }
+    std::size_t get_num_fingerprints() const { return num_fingerprints_; }
+    double get_tracing_error() const { return tracing_error_; }
     double k() const { return k_; }
-    double Z() const { return Z_; }
-    std::size_t getLength() const { return l_; }
+    double get_accusation_threshold() const { return accusation_threshold_; }
+    std::size_t getLength() const { return word_length_; }
     std::vector<double> getProbabilities() const { return probabilities_;}
     std::vector<PackedBitset> getCodeBook() const { return codeBook_; }
     std::vector<std::vector<double>> getU() const { return U_; }
@@ -144,8 +145,8 @@ class TardosCodes{
     std::vector<PackedBitset> codeBook_;
     std::vector<std::vector<double>> U_;
 
-    std::size_t l_, c_, n_;
-    double e_, k_, Z_;
+    std::size_t word_length_, coalition_threshold_, num_fingerprints_;
+    double tracing_error_, k_, accusation_threshold_;
 };
 
 } // namespace fingerprinting
