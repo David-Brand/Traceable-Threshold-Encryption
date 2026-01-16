@@ -1,3 +1,6 @@
+// Copyright (c) 2026 David Brand
+// SPDX-License-Identifier: MIT
+
 #include "btbf.hpp"
 #include "Shamir.hpp"
 

@@ -1,5 +1,8 @@
 #pragma once
 
+// Copyright (c) 2026 David Brand
+// SPDX-License-Identifier: MIT
+
 #include "btbf.hpp"
 #include "btddh.hpp"
 #include "fingerprinting_codes.hpp"

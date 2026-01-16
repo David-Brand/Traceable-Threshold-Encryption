@@ -1,5 +1,8 @@
 #pragma once
 
+// Copyright (c) 2026 David Brand
+// SPDX-License-Identifier: MIT
+
 #include <mcl/bls12_381.hpp>
 #include <mcl/curve_type.h>
 

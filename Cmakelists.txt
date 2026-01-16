@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(btbf_project LANGUAGES CXX)
+project(TTT_project LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -11,12 +11,13 @@ if (MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
 endif()
 
+#set to your mcl root directory
 set(MCL_ROOT "c:/Programme/mcl" CACHE PATH "Path to mcl root directory")
 
 set(MCL_INCLUDE_DIR "${MCL_ROOT}/include")
 set(MCL_LIB "${MCL_ROOT}/lib/mcl.lib")
 
-add_executable(btbf
+add_executable(TTT
     src/main.cpp
     src/btbf.cpp
     src/btddh.cpp
@@ -25,15 +26,15 @@ add_executable(btbf
     src/ProofSystems.cpp
 )
 
-target_include_directories(btbf PRIVATE
+target_include_directories(TTT PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${MCL_INCLUDE_DIR}
 )
 
-target_link_libraries(btbf PRIVATE "${MCL_LIB}")
+target_link_libraries(TTT PRIVATE "${MCL_LIB}")
 
 if (MSVC)
-    target_compile_options(btbf PRIVATE
+    target_compile_options(TTT PRIVATE
         $<$<CONFIG:Release>:/O2 /DNDEBUG>
     )
 endif()

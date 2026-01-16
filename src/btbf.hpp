@@ -1,5 +1,8 @@
 #pragma once
 
+// Copyright (c) 2026 David Brand
+// SPDX-License-Identifier: MIT
+
 #include <mcl/bls12_381.hpp>
 #include <mcl/curve_type.h>
 
@@ -78,14 +81,14 @@ public:
         return security_lambda_bits_;
     }
 
+    // H1 : N -> G1
+    static G1 H1(int j);
+
 private:
     static bool initialized_;
     static G1 g1_; // generator of G1
     static G2 g2_; // generator of G2
     static int security_lambda_bits_;
-
-    // H1 : N -> G1
-    static G1 H1(int j);
 
     // H2 : GT -> {0,1}^λ
     static SymKey H2(const GT& w);

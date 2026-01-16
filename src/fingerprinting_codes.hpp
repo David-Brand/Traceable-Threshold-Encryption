@@ -1,6 +1,9 @@
 #ifndef FINGERPRINTING_CODES_HPP
 #define FINGERPRINTING_CODES_HPP
 
+// Copyright (c) 2026 David Brand
+// SPDX-License-Identifier: MIT
+
 #include <vector>
 #include <cstddef>
 #include <random>

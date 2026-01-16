@@ -1,5 +1,8 @@
 #pragma once
 
+// Copyright (c) 2026 David Brand
+// SPDX-License-Identifier: MIT
+
 #include <vector>
 
 template<typename T>
