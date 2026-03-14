@@ -2,7 +2,7 @@
 #define FINGERPRINTING_CODES_HPP
 
 // Copyright (c) 2026 David Brand
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <vector>
 #include <cstddef>
