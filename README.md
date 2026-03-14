@@ -58,5 +58,5 @@ cmake --build . --config Release
 
 ## License
 
-This project is licensed under the MIT License.
-See the LICENSE.txt file for details.
+This project is licensed under the GPLv3.0 License.
+See the LICENSE file for details.
